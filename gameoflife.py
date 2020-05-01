@@ -1,72 +1,102 @@
 import pygame
 import numpy as np
 import time
-# import matplotlib.pyplot as plt
 
 pygame.init()
 
-size = width, height = 600, 600
+# Ancho y alto de la pantalla.
+width, height = 1000, 1000
+# Creación de la pantalla.
+screen = pygame.display.set_mode((height, width))
 
-nxC = 60
-nyC = 60
+# Color del fondo = Casi negro, casi oscuro.
+bg = 25, 25, 25
+# Pintamos el fondo con el color elegido.
+screen.fill(bg)
 
+# Número de celdas.
+nxC, nyC = 75, 75
+# Dimensiones de la celda
 dimCW = width / nxC
 dimCH = height / nyC
 
-bg = 25, 25, 25
+# Estado de las celdas. Vivas = 1; Muertas = 0;
+gameState = np.zeros((nxC, nyC))
 
-screen = pygame.display.set_mode(size)
-screen.fill(bg)
+# Autómata palo.
+gameState[5, 3] = 1
+gameState[5, 4] = 1
+gameState[5, 5] = 1
 
-gameState = np.random.randint(0, 2, (nxC, nyC))
+# Autómata movil.
+gameState[31, 31] = 1
+gameState[32, 32] = 1
+gameState[32, 33] = 1
+gameState[31, 33] = 1
+gameState[30, 33] = 1
 
-# gameState = np.zeros((nxC, nyC))
+# Control de la ejecución del juego.
+pauseExect = False
 
-# gameState[20, 20] = 1
-# gameState[20, 19] = 1
-# gameState[20, 21] = 1
+# Bucle de ejecución
+while True:
 
-# gameState[31, 31] = 1
-# gameState[32, 32] = 1
-# gameState[32, 33] = 1
-# gameState[31, 33] = 1
-# gameState[30, 33] = 1
+    newGameState = np.copy(gameState)
 
-while 1:
-    pygame.event.get()
     screen.fill(bg)
-    gameStateNew = np.copy(gameState)
-
-    for x in range(0, nxC):
-        for y in range(0, nyC):
-            # Se calcula el numero de vecinos de la célula (8 en total)
-            n_neigh = gameState[(x - 1) % nxC, (y - 1) % nyC] + \
-                gameState[(x) % nxC, (y - 1) % nyC] + \
-                gameState[(x + 1) % nxC, (y - 1) % nyC] + \
-                gameState[(x - 1) % nxC, (y) % nyC] + \
-                gameState[(x + 1) % nxC, (y) % nyC] + \
-                gameState[(x - 1) % nxC, (y + 1) % nyC] + \
-                gameState[(x) % nxC, (y + 1) % nyC] + \
-                gameState[(x + 1) % nxC, (y + 1) % nyC]
-
-            # Una célula muerta con exactamente 3 células vecinas vivas "nace" (es decir, al turno siguiente estará viva).
-            if gameState[x, y] == 0:
-                if n_neigh == 3:
-                    gameStateNew[x, y] = 1
-            # Una célula viva con 2 o 3 células vecinas vivas sigue viva, en otro caso muere (por "soledad" o "superpoblación").
-            else:
-                if n_neigh < 2 or n_neigh > 3:
-                    gameStateNew[x, y] = 0
-
-            poly = [((x) * dimCW, (y) * dimCH),
-                    ((x + 1) * dimCW,     (y) * dimCH),
-                    ((x + 1) * dimCW,     (y + 1) * dimCH),
-                    ((x) * dimCW, (y + 1) * dimCH)]
-            # plt.matshow(gameState)
-            # plt.show()
-
-            pygame.draw.polygon(screen, (128, 128, 128), poly, int(abs(1 - gameState[x, y])))
-    gameState = np.copy(gameStateNew)
-
     time.sleep(0.1)
+
+    # Registramos eventos de teclado y ratón.
+    ev = pygame.event.get()
+
+    for event in ev:
+        # Detectamos si se presiona una tecla.
+        if event.type == pygame.KEYDOWN:
+            pauseExect = not pauseExect
+        # Detectamos si se presiona el ratón.
+        mouseClick = pygame.mouse.get_pressed()
+
+        if sum(mouseClick) > 0:
+            posX, posY = pygame.mouse.get_pos()
+            celX, celY = int(np.floor(posX / dimCW)), int(np.floor(posY / dimCH))
+            newGameState[celX, celY] = not mouseClick[2]
+
+    for y in range(0, nyC):
+        for x in range(0, nxC):
+
+            if not pauseExect:
+
+                # Calculamos el número de vecinos directos (8 en total).
+                n_neigh =   gameState[(x - 1) % nxC, (y - 1) % nyC] + \
+                            gameState[x       % nxC, (y - 1) % nyC] + \
+                            gameState[(x + 1) % nxC, (y - 1) % nyC] + \
+                            gameState[(x - 1) % nxC, y       % nyC] + \
+                            gameState[(x + 1) % nxC, y     % nyC] + \
+                            gameState[(x - 1) % nxC, (y + 1) % nyC] + \
+                            gameState[x       % nxC, (y + 1) % nyC] + \
+                            gameState[(x + 1) % nxC, (y + 1) % nyC]
+                
+                # Rule #1:  Una célula muerta con exactamente 3 células vecinas vivas, "revive" (es decir, al turno siguiente estará viva).
+                if gameState[x, y] == 0 and n_neigh == 3:
+                    newGameState[x, y] = 1
+                # Rule #2: Una célula viva con 2 o 3 células vecinas vivas sigue viva, en otro caso muere (por "soledad" o "superpoblación").
+                elif gameState[x, y] == 1 and (n_neigh < 2 or n_neigh > 3):
+                    newGameState[x, y] = 0
+
+            # Creamos el polígono de cada celda a dibujar.
+            poly = [(x     * dimCW,    y * dimCH),
+                    ((x + 1) * dimCW,  y * dimCH),
+                    ((x + 1) * dimCW, (y + 1) * dimCH),
+                    (x     * dimCW,   (y + 1) * dimCH)]
+
+            # Dibujamos la celda para cada par de x e y.
+            if newGameState[x, y] == 0:
+                pygame.draw.polygon(screen, (128, 128, 128), poly, 1)
+            else:
+                pygame.draw.polygon(screen, (255, 255, 255), poly, 0)
+    
+    # Actualizamos el estado del juego.
+    gameState = np.copy(newGameState)
+
+    # Actualizamos la pantalla.
     pygame.display.flip()
